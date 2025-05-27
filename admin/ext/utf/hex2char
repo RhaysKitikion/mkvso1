@@ -1,0 +1,4 @@
+#!/bin/bash
+
+mess=$(sed "s/\([a-fA-F0-9][a-fA-F0-9]\)/\\\\x\1/g")
+printf "$mess"

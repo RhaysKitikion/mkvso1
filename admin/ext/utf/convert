@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# Part of Quickpay net subsystem
+# Author: Eliseev Mikhail, <eliseev@qp.local>
+# Copyright (C) Quickpay
+
+hex2char="/var/www/admin/ext/utf/hex2char"
+
+function __gsm2op
+{
+    local gsm=$1;
+    case $gsm in
+    "moto.bee")
+        op="BEELINE"
+        ;;
+    "moto.meg")
+        op="MEGAFON"
+        ;;
+    "moto.nss")
+        op="NSS"
+        ;;
+    "moto.mts")
+        op="MTS"
+        ;;
+    "moto.etk")
+        op="ETK"
+        ;;
+    "moto.utel")
+        op="UTEL"
+        ;;
+    "moto.tele2")
+        op="TELE2"
+        ;;
+    "moto.extel")
+        op="EXTEL"
+        ;;
+    "moto.diex")
+        op="DIEX"
+        ;;
+    "moto.beekz")
+        op="BEEKZ"
+        ;;
+    "moto.kzcell")
+        op="KZCELL"
+        ;;
+    "moto.asv")
+        op="ASV"
+        ;;
+    *)
+        op="UNDEF"
+        ;;
+    esac
+    echo $op;
+}
+
+function __send_sms
+{
+    local phone="$1";
+    local mess="$2";
+    local dev="$3";
+
+    #if [ "`echo $mess|wc -m`" > 70 ]; then 
+
+    report OK "__send_sms: Sending <$mess> to <$phone> via <$dev>";
+
+    devpath=$dev; __init_stty
+    phone="`echo $phone|sed 's/^8/+7/'`";
+    phone="`__utf2ucs "$phone"`"
+    mess="`__utf2ucs "$mess"`"
+
+    errcode=1; i=0
+    while [ "$errcode" -ne 0 -a "$i" -lt 10 ]; do
+        chat -e -t 10 '' 'ATZ&F' 'OK' 'AT+CMGF=1' 'OK' 'AT+CSCS="UCS2"' 'OK' \
+        'AT+CSMP=17,167,0,25' 'OK'  < $dev > $dev; errcode=$?
+        let i++;
+        if [ $errcode -ne 0 ]; then
+            report ERR "__send_sms: Cant initialize SIM (AT+CSMP) $i times";
+        fi
+    done
+    if [ $errcode -eq 0 ]; then
+        chat -e -t 15 '' "AT+CMGS=\"$phone\"" '> ' "$mess^z" 'OK' < $dev > $dev
+    else report ERR "__send_sms: Cant send sms, check CSCA: `chat -e -t 10 '' 'AT+CSCA?' 'OK' < $dev > $dev`"; fi;
+};
+
+
+function __ucs2utf
+{
+# check for UCS2 and convert to UTF8 if need
+local msg=$1
+echo $msg | grep "[^0-9A-F]" > /dev/null; local isUCS2=$?
+if [ "$isUCS2" -gt 0 ]; then
+    msg=`echo -n "$msg" | $hex2char | iconv -f UCS-2BE -t UTF-8`
+fi;
+echo $msg
+};
+
+function __utf2ucs
+{
+    local str="$1"
+    echo -n "$str"|/usr/bin/iconv -f utf8 -t UCS-2BE|/usr/bin/xxd -p -c 255 -u|xargs|sed 's/[^0-9a-f]//ig'
+};
+
+__ucs2utf $1
